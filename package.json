@@ -1,0 +1,17 @@
+{
+  "name": "low_waifu",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "type": "module",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "nodemon": "^3.1.4",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3"
+  }
+}
