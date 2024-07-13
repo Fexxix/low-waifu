@@ -11,11 +11,15 @@
   "devDependencies": {
     "@types/node": "^20.14.10",
     "nodemon": "^3.1.4",
+    "ts-node": "^10.9.2",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3"
   },
   "dependencies": {
     "axios": "^1.7.2",
-    "sharp": "^0.33.4"
+    "dotenv": "^16.4.5",
+    "mongoose": "^8.5.1",
+    "sharp": "^0.33.4",
+    "uploadthing": "^6.13.2"
   }
 }
