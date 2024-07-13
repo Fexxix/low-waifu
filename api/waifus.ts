@@ -1,5 +1,5 @@
 import sharp from "sharp"
-import axios from "axios"
+import axios, { AxiosError } from "axios"
 
 const WAIFU_API_URL = "https://api.waifu.im/search"
 const TARGET_WIDTH = 400 // Adjust as needed
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
 
     return Response.json(processedImages, { headers })
   } catch (error) {
-    console.error("Error processing images:", error)
+    console.error("Error processing images:", error as AxiosError)
     return Response.json(
       { error: "An error occurred while processing images" },
       { status: 500, headers }
