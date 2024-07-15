@@ -6,6 +6,8 @@ import mongoose, { Schema, Document } from "mongoose"
 export interface WaifuDocument extends Document {
   previewUrl: string
   url: string
+  previewHeight: number
+  previewWidth: number
   width: number
   height: number
   dominantColor: string
@@ -17,6 +19,8 @@ const WaifuSchema: Schema<WaifuDocument> = new Schema({
   url: { type: String, required: true },
   width: { type: Number, required: true },
   height: { type: Number, required: true },
+  previewHeight: { type: Number, required: true },
+  previewWidth: { type: Number, required: true },
   dominantColor: { type: String, required: true },
 })
 

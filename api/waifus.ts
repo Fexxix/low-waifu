@@ -1,17 +1,7 @@
-import sharp from "sharp"
-import axios from "axios"
 import { connectToDatabase } from "./src/mongodb.js"
 import WaifuModel from "./src/waifu-model.js"
-import { config } from "dotenv"
-import { UTApi } from "uploadthing/server"
-
-config()
-
-const WAIFU_API_URL = "https://api.waifu.im/search"
-const TARGET_WIDTH = 400 // Adjust as needed
-const QUALITY = 80
-
-const utapi = new UTApi()
+import sharp from "sharp"
+import axios from "axios"
 
 export async function GET(request: Request) {
   // CORS headers
@@ -25,8 +15,8 @@ export async function GET(request: Request) {
     await connectToDatabase()
   } catch (e) {
     console.error(e)
-    return Response.json(
-      { error: "Failed to connect to database" },
+    return new Response(
+      JSON.stringify({ error: "Failed to connect to database" }),
       { status: 500 }
     )
   }
@@ -38,89 +28,69 @@ export async function GET(request: Request) {
 
   try {
     const { searchParams } = new URL(request.url)
-    const limit = searchParams.get("limit") || "20"
+    const limit = parseInt(searchParams.get("limit") || "20", 10)
 
-    // Fetch images from Waifu API
-    const response = await axios.get(WAIFU_API_URL, {
-      params: { limit, gif: false },
-    })
+    // Fetch all waifus from the database
+    const allWaifus = await WaifuModel.find({}).exec()
 
-    const images = response.data.images
+    // Track how many documents have been updated
+    let updatedCount = 0
 
-    // Process images
-    const processedImages = []
-    for (const img of images) {
-      const image = await WaifuModel.findOne({ url: img.url })
-
-      if (image) {
-        processedImages.push(image)
-        continue
-      }
-
-      const imageResponse = await axios.get(img.url, {
-        responseType: "arraybuffer",
-      })
-      const imageBuffer = Buffer.from(imageResponse.data)
-
-      const resizedImage = await sharp(imageBuffer)
-        .resize({ width: TARGET_WIDTH })
-        .toBuffer({ resolveWithObject: true })
-
-      let outputFormat: "jpeg" | "png" | "webp"
+    // Iterate through each waifu
+    for (const waifu of allWaifus) {
+      // Check if the waifu needs to be updated
       if (
-        resizedImage.info.format === "jpeg" ||
-        resizedImage.info.format === "jpg"
+        !waifu.previewHeight ||
+        !waifu.previewWidth ||
+        !waifu.width ||
+        !waifu.height
       ) {
-        outputFormat = "jpeg"
-      } else if (resizedImage.info.format === "png") {
-        outputFormat = "png"
-      } else {
-        outputFormat = "webp"
-      }
-
-      const optimizedImage = await sharp(resizedImage.data)
-        [outputFormat]({ quality: QUALITY })
-        .toBuffer()
-
-      const aspectRatio = img.width / img.height
-      const newHeight = Math.round(TARGET_WIDTH / aspectRatio)
-
-      const uploadResult = await utapi.uploadFiles(
-        new File([optimizedImage], img.url, {
-          type: `image/${outputFormat}`,
+        // Fetch the image from the URL
+        const response = await axios.get(waifu.url, {
+          responseType: "arraybuffer",
         })
-      )
+        const imageBuffer = Buffer.from(response.data, "binary")
+        const metadata = await sharp(imageBuffer).metadata()
 
-      await WaifuModel.create({
-        previewUrl:
-          uploadResult.data?.url ??
-          `data:image/${outputFormat};base64,${optimizedImage.toString(
-            "base64"
-          )}`,
-        url: img.url,
-        width: TARGET_WIDTH,
-        height: newHeight,
-        dominantColor: img.dominant_color,
-      })
+        // Update the waifu document
+        waifu.previewHeight = waifu.previewHeight || waifu.height
+        waifu.previewWidth = waifu.previewWidth || waifu.width
+        // @ts-ignore
+        waifu.height = metadata.height
+        // @ts-ignore
+        waifu.width = metadata.width
 
-      processedImages.push({
-        preview_url:
-          uploadResult.data?.url ??
-          `data:image/${outputFormat};base64,${optimizedImage.toString(
-            "base64"
-          )}`,
-        width: TARGET_WIDTH,
-        height: newHeight,
-        dominant_color: img.dominant_color,
-        url: img.url,
-      })
+        await WaifuModel.updateOne(
+          { _id: waifu._id },
+          {
+            $set: {
+              previewHeight: waifu.previewHeight,
+              previewWidth: waifu.previewWidth,
+              height: waifu.height,
+              width: waifu.width,
+            },
+          }
+        )
+
+        updatedCount++
+
+        // If we've updated 'limit' number of documents, break out of the loop
+        if (updatedCount >= limit) {
+          break
+        }
+      }
     }
 
-    return Response.json(processedImages, { headers })
+    // Fetch updated waifus after all updates
+    const updatedWaifus = await WaifuModel.find({}).limit(limit).exec()
+
+    return new Response(JSON.stringify(updatedWaifus), { headers })
   } catch (error) {
-    console.error("Error processing images:", error)
-    return Response.json(
-      { error: "An error occurred while processing images" },
+    console.error("Error fetching or updating waifus", error)
+    return new Response(
+      JSON.stringify({
+        error: "An error occurred while fetching or updating waifus",
+      }),
       { status: 500, headers }
     )
   }
